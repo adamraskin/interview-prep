@@ -1,0 +1,5 @@
+# Optional. Install this in addition to requirements-transcribe.txt for
+# GPU-accelerated transcription (NVIDIA GPU on Windows/Linux, CUDA 12).
+# Without it, transcribe_server.py automatically falls back to CPU.
+nvidia-cublas-cu12
+nvidia-cudnn-cu12

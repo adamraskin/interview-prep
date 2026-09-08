@@ -94,7 +94,7 @@
 
   .grid {
     display: grid;
-    grid-template-columns: 1.15fr 0.85fr;
+    grid-template-columns: 0.85fr 1.15fr;
     gap: 20px;
   }
   @media (max-width: 880px) {
@@ -117,22 +117,6 @@
     font-weight: 600;
     display: flex; align-items: center; justify-content: space-between;
   }
-  textarea {
-    width: 100%;
-    background: var(--panel-alt);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    color: var(--text);
-    padding: 12px;
-    font-size: 13.5px;
-    resize: vertical;
-    line-height: 1.5;
-  }
-  textarea:focus { outline: none; border-color: var(--accent); }
-  #problem { font-family: 'Space Grotesk', sans-serif; min-height: 90px; }
-  #code { font-family: 'JetBrains Mono', monospace; min-height: 280px; font-size: 13px; }
-
-  .lang-row { display: flex; gap: 8px; margin-bottom: 10px; }
   select {
     font-family: 'Space Grotesk', sans-serif;
     background: var(--panel-alt);
@@ -144,7 +128,8 @@
   }
 
   .transcript-box {
-    max-height: 160px;
+    min-height: 420px;
+    max-height: 65vh;
     overflow-y: auto;
     background: var(--panel-alt);
     border: 1px solid var(--border);
@@ -208,7 +193,7 @@
     display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
   }
   .settings-bar label { font-size: 13px; color: var(--text-dim); flex-shrink: 0; }
-  .settings-bar input[type="text"] {
+  .settings-bar input[type="text"], .settings-bar input[type="password"] {
     font-family: 'JetBrains Mono', monospace;
     font-size: 12.5px;
     background: var(--panel-alt);
@@ -290,6 +275,7 @@
     </div>
     <div class="controls">
       <button id="micBtn">🎙️ Start transcript</button>
+      <button id="callCaptureBtn">🖥️ Capture call audio</button>
       <div class="timer" id="timer">00:00</div>
       <button id="timerBtn" class="primary">Start</button>
     </div>
@@ -298,12 +284,17 @@
   <div class="settings-bar" id="settingsBar">
     <label for="provider">Answers powered by</label>
     <select id="provider">
-      <option value="claude">Claude (this chat's connection)</option>
-      <option value="local">Local model (LM Studio)</option>
+      <option value="claude">Claude (cloud API)</option>
+      <option value="local" selected>Local model (LM Studio)</option>
+      <option value="codebridge">Claude Code (VS Code subscription)</option>
     </select>
-    <input type="text" id="localUrl" placeholder="http://localhost:1234/v1/chat/completions" value="http://localhost:1234/v1/chat/completions" style="display:none;">
-    <input type="text" id="localModel" placeholder="model name (optional — LM Studio will use whatever's loaded)" style="display:none;">
-    <span class="settings-note" id="settingsNote">Using Claude through this conversation's connection.</span>
+    <input type="password" id="claudeKey" placeholder="Claude API key (sk-ant-...)" style="display:none;">
+    <input type="text" id="localUrl" placeholder="http://localhost:1234/api/v1/chat">
+    <input type="text" id="localModel" placeholder="model name">
+    <input type="password" id="localToken" placeholder="API token (optional — only if your local server requires one)">
+    <input type="text" id="bridgeUrl" placeholder="/api/chat/codebridge" value="/api/chat/codebridge" style="display:none;">
+    <input type="password" id="bridgeToken" placeholder="bridge token" style="display:none;">
+    <span class="settings-note" id="settingsNote">Sends prompts to a server on this machine — nothing leaves your computer. Requires LM Studio's local server running with CORS enabled.</span>
   </div>
 
   <div class="live-bar">
@@ -313,35 +304,16 @@
     </label>
     <span class="live-label">Live coaching</span>
     <span class="live-dot" id="liveDot"></span>
-    <div class="live-insight" id="liveInsight">Off — flip the switch to get short, auto-updating nudges here as the candidate talks and codes. Visible to everyone watching this screen, same as everything else.</div>
+    <div class="live-insight" id="liveInsight">Off — flip the switch to get short, auto-updating nudges here as the candidate talks. Visible to everyone watching this screen, same as everything else.</div>
   </div>
 
   <div class="grid">
     <!-- LEFT COLUMN -->
     <div>
       <div class="panel">
-        <h2>Problem statement</h2>
-        <textarea id="problem" placeholder="Paste or type the interview question here (e.g. 'Given an array of integers, return indices of the two numbers that add up to a target...')"></textarea>
-      </div>
-
-      <div class="panel">
-        <h2>
-          Candidate's code
-          <select id="lang">
-            <option>Python</option>
-            <option>JavaScript</option>
-            <option>Java</option>
-            <option>C++</option>
-            <option>Go</option>
-            <option>Other</option>
-          </select>
-        </h2>
-        <textarea id="code" placeholder="Candidate writes/talks through their solution here as they work..."></textarea>
-      </div>
-
-      <div class="panel">
-        <h2>Live transcript (optional, browser speech-to-text)</h2>
-        <div class="transcript-box" id="transcriptBox"><span class="empty">Transcript will appear here once you start it. Works best in Chrome. Entirely local to this tab — nothing is recorded outside your session.</span></div>
+        <h2>Live transcript</h2>
+        <div class="transcript-box" id="transcriptBox"><span class="empty">Start the mic (top right) to begin. Everything the Coach panel knows — the problem, the approach, any code talked through — comes from this transcript, so the more that gets said out loud, the better its answers are. Works best in Chrome. Entirely local to this tab — nothing is recorded outside your session.</span></div>
+        <p style="color:var(--text-dim); font-size:11.5px; margin: 8px 0 0; line-height:1.5;">"Capture call audio" adds the other person's voice from a Meet/Teams/Zoom browser tab into this same transcript — pick that tab and check "Share tab audio" when Chrome prompts. It only reads a copy of that tab's audio; your speakers keep playing it normally. Needs a Whisper-compatible transcription server configured (see README) — without one, this button will just error.</p>
       </div>
     </div>
 
@@ -350,14 +322,23 @@
       <div class="panel">
         <h2>Coach</h2>
         <div class="tabs">
-          <button class="tab active" data-mode="hint">Nudge / hint</button>
+          <button class="tab active" data-mode="solve">Solve</button>
+          <button class="tab" data-mode="hint">Nudge / hint</button>
           <button class="tab" data-mode="correctness">Correctness check</button>
           <button class="tab" data-mode="complexity">Complexity</button>
-          <button class="tab" data-mode="reveal">Reveal approach</button>
         </div>
-        <div class="coach-output" id="coachOutput"><span class="placeholder">Pick a tab, then hit "Ask coach." A hint nudges without giving the answer away — useful mid-attempt. "Reveal approach" gives the fuller solution and is meant for after the candidate has had a real attempt, or during review.</span></div>
+        <div class="coach-output" id="coachOutput"><span class="placeholder">"Solve" writes out a full example answer in the candidate's own voice — the kind of thing a strong candidate would actually say out loud, code and all. Switch tabs for a smaller hint, a correctness check, or a complexity read instead. Hit "Ask coach", or turn on auto-answer below to have it fire on its own after a natural pause.</span></div>
         <div style="margin-top: 10px; display:flex; gap: 8px;">
           <button class="primary" id="askCoach" style="flex:1;">Ask coach</button>
+        </div>
+        <div class="live-bar" style="margin: 12px 0 0; padding: 10px 14px;">
+          <label class="switch">
+            <input type="checkbox" id="autoSolveToggle" checked>
+            <span class="slider"></span>
+          </label>
+          <span class="live-label" title="Press P to pause/resume without reaching for the mouse">Auto-answer on pause (P)</span>
+          <span class="live-dot" id="autoSolveDot"></span>
+          <div class="live-insight" id="autoSolveInsight">On — after the candidate goes quiet for a few seconds, Solve runs automatically and its answer appears above. Visible to everyone watching this screen, same as a manual click.</div>
         </div>
       </div>
 
@@ -453,56 +434,206 @@
     return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   }
 
+  // ---------- Call audio capture (Meet/Teams/Zoom tab audio -> transcript) ----------
+  // The Web Speech API above only ever listens to the OS microphone — it
+  // can't be pointed at an arbitrary stream. To pick up the other person's
+  // voice from a video-call browser tab without routing audio through a
+  // virtual cable, this grabs a COPY of that tab's audio via
+  // getDisplayMedia (your speakers keep playing it normally, nothing is
+  // rerouted), then sends short chunks to a Whisper-compatible
+  // transcription server through server.js. Requires that server to be
+  // configured — see README; without one, this just surfaces an error.
+  const callCaptureBtn = document.getElementById('callCaptureBtn');
+  let callCaptureStream = null;
+  let callAudioOnlyStream = null;
+  let callRecorder = null;
+  let callCaptureOn = false;
+  let callCaptureMimeType = '';
+
+  callCaptureBtn.addEventListener('click', async () => {
+    if (callCaptureOn) { stopCallCapture(); return; }
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+      transcriptBox.innerHTML = '<span class="empty">This browser can\'t capture tab audio. Try Chrome or Edge.</span>';
+      return;
+    }
+    let stream;
+    try {
+      stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+    } catch (err) {
+      return; // user cancelled the share picker
+    }
+    const audioTracks = stream.getAudioTracks();
+    if (audioTracks.length === 0) {
+      stream.getTracks().forEach(t => t.stop());
+      transcriptBox.innerHTML = '<span class="empty">No audio was shared — when the picker appears, choose the call\'s browser tab and check "Share tab audio."</span>';
+      return;
+    }
+    callCaptureStream = stream;
+    callAudioOnlyStream = new MediaStream(audioTracks);
+    callCaptureMimeType = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus']
+      .find(t => window.MediaRecorder && MediaRecorder.isTypeSupported(t)) || '';
+    callCaptureOn = true;
+    callCaptureBtn.classList.add('mic-on');
+    callCaptureBtn.textContent = '⏸ Stop call audio';
+    stream.getVideoTracks().forEach(t => { t.onended = stopCallCapture; });
+    startCallSegment();
+  });
+
+  // A MediaRecorder that emits periodic chunks via one long recording
+  // (recorder.start(5000)) only produces a complete, independently
+  // decodable file in its FIRST chunk — later chunks are missing the
+  // container header a decoder needs, so sending them individually fails.
+  // The fix is to record in back-to-back short SEGMENTS instead: stop and
+  // start a fresh MediaRecorder every 5s so each segment's single blob is
+  // a complete, standalone file.
+  function startCallSegment() {
+    if (!callCaptureOn || !callAudioOnlyStream) return;
+    const segmentChunks = [];
+    callRecorder = new MediaRecorder(callAudioOnlyStream, callCaptureMimeType ? { mimeType: callCaptureMimeType } : undefined);
+    callRecorder.ondataavailable = (e) => { if (e.data && e.data.size > 0) segmentChunks.push(e.data); };
+    callRecorder.onstop = async () => {
+      const blob = new Blob(segmentChunks, { type: callCaptureMimeType || 'audio/webm' });
+      if (blob.size > 1000) {
+        try {
+          const text = await transcribeAudioBlob(blob);
+          if (text && text.trim()) {
+            transcriptLines.push(`[other speaker] ${text.trim()}`);
+            renderTranscript('');
+          }
+        } catch (err) {
+          transcriptBox.insertAdjacentHTML('beforeend', `<div style="color:var(--bad)">Call audio transcription error: ${escapeHtml(err.message)}</div>`);
+        }
+      }
+      if (callCaptureOn) startCallSegment();
+    };
+    callRecorder.start();
+    setTimeout(() => { if (callRecorder && callRecorder.state !== 'inactive') callRecorder.stop(); }, 5000);
+  }
+
+  function stopCallCapture() {
+    callCaptureOn = false;
+    callCaptureBtn.classList.remove('mic-on');
+    callCaptureBtn.textContent = '🖥️ Capture call audio';
+    if (callRecorder && callRecorder.state !== 'inactive') callRecorder.stop();
+    callRecorder = null;
+    if (callCaptureStream) callCaptureStream.getTracks().forEach(t => t.stop());
+    callCaptureStream = null;
+    callAudioOnlyStream = null;
+  }
+
+  async function transcribeAudioBlob(blob) {
+    const bridgeToken = bridgeTokenInput.value.trim();
+    if (!bridgeToken) throw new Error("missing local API token — restart via 'node server.js'");
+    const arrayBuffer = await blob.arrayBuffer();
+    const response = await fetch('/api/transcribe', {
+      method: 'POST',
+      headers: {
+        'Content-Type': blob.type || 'audio/webm',
+        'Authorization': `Bearer ${bridgeToken}`
+      },
+      body: arrayBuffer
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data?.error || `transcription error: ${response.status}`);
+    return data.text || '';
+  }
+
   // ---------- Coach tabs ----------
-  let activeMode = 'hint';
+  let activeMode = 'solve';
   document.querySelectorAll('.tab').forEach(tab => {
     tab.addEventListener('click', () => {
-      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-      tab.classList.add('active');
-      activeMode = tab.dataset.mode;
+      setActiveMode(tab.dataset.mode);
     });
   });
 
+  function setActiveMode(mode) {
+    activeMode = mode;
+    document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.mode === mode));
+  }
+
+  // There's no problem/code input anymore — everything the model knows
+  // comes from the spoken transcript (the candidate's mic, plus, if
+  // enabled, the interviewer's voice via call audio capture). Every
+  // prompt below has to infer the problem, language, and approach from
+  // that transcript, and say so plainly when it isn't enough to go on.
+  // Every mode is instructed to stay short and bulleted rather than
+  // write long prose — faster to generate, and faster for someone to
+  // actually scan mid-interview.
   const modePrompts = {
-    hint: (ctx) => `You are coaching a candidate DURING a mock coding interview, live, in front of their interview partner. They are stuck or want a nudge. Do NOT give the full solution or working code. Give ONE short, targeted hint (2-4 sentences) that points toward the right idea, data structure, or edge case they're missing — the kind of nudge a good interviewer gives. End with a guiding question, not an answer.\n\n${ctx}`,
-    correctness: (ctx) => `Review the candidate's code for correctness. List: (1) whether it looks correct for the stated problem, (2) any bugs, (3) edge cases it misses (empty input, duplicates, negative numbers, etc. as relevant). Be specific and concise, using short bullet points. This is for a practice interview, so be direct and instructive rather than just encouraging.\n\n${ctx}`,
-    complexity: (ctx) => `Analyze the time and space complexity of the candidate's current code. State Big-O for both, briefly explain why, and note one way it could be improved if it's not already optimal.\n\n${ctx}`,
-    reveal: (ctx) => `The candidate has had a real attempt (or the mock interview is over) and wants to see a strong reference approach for review purposes. Give: (1) the core idea in 2-3 sentences, (2) a clean solution in the candidate's stated language, (3) time/space complexity. Keep it tight — this is a study aid, not a wall of text.\n\n${ctx}`
+    solve: (ctx) => `Based on the transcript below, give a strong EXAMPLE ANSWER for the problem being discussed — a model answer for the candidate to study, not a hint. Keep it SHORT and SCANNABLE, not a spoken narrative: 1 sentence stating the approach, then a few short bullet points for the key reasoning/tradeoffs/edge cases, then the code in one code block, then one line for time/space complexity. No step-by-step trace-throughs, no restating the code in prose. Infer the problem and language from the transcript; if genuinely unclear, note it in one line and make a reasonable assumption rather than refusing.\n\n${ctx}`,
+    hint: (ctx) => `You are coaching a candidate DURING a mock coding interview, live, in front of their interview partner. Everything you know is in the transcript below. They are stuck or want a nudge. Do NOT give the full solution or working code. Give ONE short, targeted hint (1-2 sentences, or a single bullet) that points toward the right idea, data structure, or edge case they're missing. End with a guiding question, not an answer. If the transcript doesn't give you enough to go on yet, say so in one line.\n\n${ctx}`,
+    correctness: (ctx) => `Based on the transcript below, review the approach and any code the candidate has described out loud for correctness. Answer ONLY as short bullet points (no intro sentence, no prose): correct or not for the stated problem, any bugs or gaps, edge cases they haven't mentioned. Keep it under 80 words total. If the transcript doesn't give you enough to assess yet, say so in one line.\n\n${ctx}`,
+    complexity: (ctx) => `Based on the transcript below, give the time and space complexity of the approach the candidate has described, as 2-3 short bullet points max: Big-O for each, one line of why, one line on how to improve it if not optimal. No prose paragraphs. If the transcript doesn't give you enough to determine this yet, say so in one line.\n\n${ctx}`
   };
 
   function buildContext() {
-    const problem = document.getElementById('problem').value.trim() || '(no problem statement entered)';
-    const code = document.getElementById('code').value.trim() || '(no code written yet)';
-    const lang = document.getElementById('lang').value;
-    const transcript = transcriptLines.slice(-12).join(' ') || '(no transcript captured)';
-    return `PROBLEM:\n${problem}\n\nLANGUAGE: ${lang}\n\nCANDIDATE'S CURRENT CODE:\n${code}\n\nRECENT SPOKEN TRANSCRIPT (may be partial/noisy):\n${transcript}`;
+    const transcript = transcriptLines.join('\n') || '(no transcript captured yet)';
+    return `FULL SPOKEN TRANSCRIPT SO FAR (may be partial/noisy; may include the interviewer reading the problem, the candidate thinking out loud, or both if call audio capture is on):\n${transcript}`;
   }
 
   // ---------- Model provider: Claude (cloud) or local via LM Studio ----------
   const providerSelect = document.getElementById('provider');
+  const claudeKeyInput = document.getElementById('claudeKey');
   const localUrlInput = document.getElementById('localUrl');
   const localModelInput = document.getElementById('localModel');
+  const localTokenInput = document.getElementById('localToken');
+  const bridgeUrlInput = document.getElementById('bridgeUrl');
+  const bridgeTokenInput = document.getElementById('bridgeToken');
   const settingsNote = document.getElementById('settingsNote');
 
+  // When this page is served by server.js, it injects window.__MIC_CONFIG__
+  // (read from a gitignored .env file) directly into the HTML response —
+  // this only prefills the fields below, everything stays editable
+  // afterward. Opening the HTML file directly (no server.js) leaves this
+  // undefined and the fields just stay blank.
+  (function loadServerConfig() {
+    const cfg = window.__MIC_CONFIG__;
+    if (!cfg) return;
+    if (cfg.claudeApiKey) claudeKeyInput.value = cfg.claudeApiKey;
+    if (cfg.lmStudioUrl) localUrlInput.value = cfg.lmStudioUrl;
+    if (cfg.lmStudioModel) localModelInput.value = cfg.lmStudioModel;
+    if (cfg.lmStudioToken) localTokenInput.value = cfg.lmStudioToken;
+    if (cfg.bridgeToken) bridgeTokenInput.value = cfg.bridgeToken;
+  })();
+
+  const settingsNotes = {
+    claude: "Sends prompts directly to the Claude API from your browser. Needs your own API key from console.anthropic.com — it is only kept in this page's memory, never sent anywhere but api.anthropic.com.",
+    local: "Sends prompts to a server on this machine — nothing leaves your computer. Requires LM Studio's local server running with CORS enabled.",
+    codebridge: "Uses your Claude Code / VS Code subscription login instead of an API key. Runs through the same 'node server.js' process serving this page — one persistent Claude Code session for the whole practice session, not one CLI call per question."
+  };
+
   providerSelect.addEventListener('change', () => {
-    const isLocal = providerSelect.value === 'local';
-    localUrlInput.style.display = isLocal ? 'inline-block' : 'none';
-    localModelInput.style.display = isLocal ? 'inline-block' : 'none';
-    settingsNote.textContent = isLocal
-      ? "Sends prompts to a server on this machine — nothing leaves your computer. Requires LM Studio's local server running with CORS enabled. Won't reach localhost from inside this chat preview — works once you run this file in your own browser."
-      : "Using Claude through this conversation's connection.";
+    const mode = providerSelect.value;
+    claudeKeyInput.style.display = mode === 'claude' ? 'inline-block' : 'none';
+    localUrlInput.style.display = mode === 'local' ? 'inline-block' : 'none';
+    localModelInput.style.display = mode === 'local' ? 'inline-block' : 'none';
+    localTokenInput.style.display = mode === 'local' ? 'inline-block' : 'none';
+    bridgeUrlInput.style.display = mode === 'codebridge' ? 'inline-block' : 'none';
+    bridgeTokenInput.style.display = mode === 'codebridge' ? 'inline-block' : 'none';
+    settingsNote.textContent = settingsNotes[mode];
   });
+  providerSelect.dispatchEvent(new Event('change'));
 
   async function callClaude(promptText) {
     if (providerSelect.value === 'local') {
       return callLocalModel(promptText);
     }
+    if (providerSelect.value === 'codebridge') {
+      return callCodeBridge(promptText);
+    }
+    const apiKey = claudeKeyInput.value.trim();
+    if (!apiKey) throw new Error("Enter a Claude API key above first");
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+        "anthropic-dangerous-direct-browser-access": "true"
+      },
       body: JSON.stringify({
         model: "claude-sonnet-4-6",
-        max_tokens: 700,
+        max_tokens: 1500,
         messages: [{ role: "user", content: promptText }]
       })
     });
@@ -513,56 +644,91 @@
   }
 
   async function callLocalModel(promptText) {
-    const url = localUrlInput.value.trim() || 'http://localhost:1234/v1/chat/completions';
-    const model = localModelInput.value.trim(); // LM Studio ignores/accepts this; blank = whatever's loaded
+    // Proxied through server.js: LM Studio requires its auth token even on
+    // the CORS preflight OPTIONS request, which browsers can't get past
+    // when a custom Authorization header is involved. Node's fetch on the
+    // server side isn't subject to CORS, so the token-bearing call happens
+    // there instead of directly from this page.
+    const url = localUrlInput.value.trim();
+    const model = localModelInput.value.trim();
+    const token = localTokenInput.value.trim();
+    const bridgeToken = bridgeTokenInput.value.trim();
+    if (!bridgeToken) throw new Error("Missing local API token — restart via 'node server.js' to get one automatically.");
+    let response;
+    try {
+      response = await fetch('/api/chat/local', {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${bridgeToken}` },
+        body: JSON.stringify({ url, model, token, prompt: promptText })
+      });
+    } catch (networkErr) {
+      throw new Error("Can't reach the local server. Is it running via \"node server.js\"?");
+    }
+    const data = await response.json();
+    if (!response.ok) throw new Error(data?.error || `Local model error: ${response.status}`);
+    return data.content || "(no response text returned)";
+  }
+
+  async function callCodeBridge(promptText) {
+    const url = bridgeUrlInput.value.trim() || '/api/chat/codebridge';
+    const token = bridgeTokenInput.value.trim();
+    if (!token) throw new Error("Missing bridge token — restart via 'node server.js' to get one automatically, or paste one in.");
     let response;
     try {
       response = await fetch(url, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: model || "local-model",
-          messages: [{ role: "user", content: promptText }],
-          max_tokens: 700,
-          temperature: 0.4
-        })
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+        body: JSON.stringify({ prompt: promptText })
       });
     } catch (networkErr) {
-      throw new Error(`Can't reach LM Studio at ${url}. Is the local server running, and CORS enabled?`);
+      throw new Error(`Can't reach the Claude Code bridge at ${url}. Is the server running via "node server.js"?`);
     }
-    if (!response.ok) throw new Error(`Local server error: ${response.status}`);
     const data = await response.json();
-    const content = data?.choices?.[0]?.message?.content;
-    return content || "(no response text returned)";
+    if (!response.ok) throw new Error(data?.error || `Bridge error: ${response.status}`);
+    return data.content || "(no response text returned)";
   }
 
   const coachOutput = document.getElementById('coachOutput');
   const sessionLog = document.getElementById('sessionLog');
   const askCoachBtn = document.getElementById('askCoach');
+  let coachInFlight = false;
 
-  askCoachBtn.addEventListener('click', async () => {
+  async function runCoach(mode) {
+    if (coachInFlight) return;
+    coachInFlight = true;
     const ctx = buildContext();
-    const prompt = modePrompts[activeMode](ctx);
+    const prompt = modePrompts[mode](ctx);
     coachOutput.innerHTML = '<span class="loading">Thinking…</span>';
     askCoachBtn.disabled = true;
     try {
       const result = await callClaude(prompt);
       coachOutput.textContent = result;
-      addLogEntry(activeMode, result);
+      addLogEntry(mode, result);
     } catch (err) {
       coachOutput.innerHTML = `<span style="color:var(--bad)">Something went wrong reaching the coach (${err.message}). Try again.</span>`;
     } finally {
       askCoachBtn.disabled = false;
+      coachInFlight = false;
     }
-  });
+  }
+
+  askCoachBtn.addEventListener('click', () => runCoach(activeMode));
 
   function addLogEntry(mode, text) {
     if (sessionLog.querySelector('.placeholder')) sessionLog.innerHTML = '';
-    const labels = { hint: 'Hint', correctness: 'Correctness check', complexity: 'Complexity', reveal: 'Revealed approach' };
+    const labels = { solve: 'Example answer', hint: 'Hint', correctness: 'Correctness check', complexity: 'Complexity' };
     const entry = document.createElement('div');
     entry.className = 'log-entry';
+    entry.style.cursor = 'pointer';
+    entry.title = 'Click to view this full answer again';
     const short = text.length > 140 ? text.slice(0, 140) + '…' : text;
     entry.innerHTML = `<div class="tag">${labels[mode]}</div><div>${escapeHtml(short)}</div>`;
+    // Click any past log entry to bring its full answer back into the Coach
+    // panel above — the log only ever showed a truncated snippet otherwise.
+    entry.addEventListener('click', () => {
+      coachOutput.textContent = text;
+      coachOutput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
     sessionLog.prepend(entry);
   }
 
@@ -573,7 +739,6 @@
   let liveEnabled = false;
   let liveWatcher = null;
   let lastLiveCallAt = 0;
-  let lastSeenCode = '';
   let lastSeenTranscriptCount = 0;
   let liveInFlight = false;
   const LIVE_MIN_INTERVAL_MS = 12000; // rate limit so this stays cheap and fast, not spammy
@@ -587,10 +752,7 @@
   }
 
   function hasMeaningfulChange() {
-    const code = document.getElementById('code').value;
-    const codeChanged = code.trim() !== lastSeenCode.trim() && code.trim().length > 0;
-    const transcriptChanged = transcriptLines.length !== lastSeenTranscriptCount;
-    return codeChanged || transcriptChanged;
+    return transcriptLines.length !== lastSeenTranscriptCount;
   }
 
   async function maybeRunLive() {
@@ -605,11 +767,10 @@
     }
     liveInFlight = true;
     lastLiveCallAt = now;
-    lastSeenCode = document.getElementById('code').value;
     lastSeenTranscriptCount = transcriptLines.length;
     liveDot.classList.add('on');
     const ctx = buildContext();
-    const prompt = `You are a live, on-screen coaching strip visible to both people in a mock coding interview, updating every few seconds. Based on the most recent code and spoken transcript, give ONE short observation or nudge, 15 words or fewer. Never give a full solution or write code here — this is a glanceable nudge, not an answer. If nothing meaningful has changed or there's nothing useful to flag yet, say something like "Looking good so far — no concerns yet." Respond with just that one line, no preamble.\n\n${ctx}`;
+    const prompt = `You are a live, on-screen coaching strip visible to both people in a mock coding interview, updating every few seconds. Based on the transcript so far, give ONE short observation or nudge, 15 words or fewer. Never give a full solution or write code here — this is a glanceable nudge, not an answer. If nothing meaningful has changed or there's nothing useful to flag yet, say something like "Looking good so far — no concerns yet." Respond with just that one line, no preamble.\n\n${ctx}`;
     try {
       const result = await callClaude(prompt);
       liveInsightEl.textContent = result.trim();
@@ -626,22 +787,92 @@
   liveToggle.addEventListener('change', () => {
     liveEnabled = liveToggle.checked;
     if (liveEnabled) {
-      liveInsightEl.textContent = 'Live coaching on — watching the code and transcript for changes.';
+      liveInsightEl.textContent = 'Live coaching on — watching the transcript for changes.';
       liveInsightEl.classList.add('active');
-      lastSeenCode = document.getElementById('code').value;
       lastSeenTranscriptCount = transcriptLines.length;
     } else {
-      liveInsightEl.textContent = 'Off — flip the switch to get short, auto-updating nudges here as the candidate talks and codes. Visible to everyone watching this screen, same as everything else.';
+      liveInsightEl.textContent = 'Off — flip the switch to get short, auto-updating nudges here as the candidate talks. Visible to everyone watching this screen, same as everything else.';
       liveInsightEl.classList.remove('active');
       clearTimeout(idleTimer);
     }
   });
 
-  document.getElementById('code').addEventListener('input', scheduleLiveCheck);
   const _origRenderTranscript = renderTranscript;
   renderTranscript = function(interim) {
     _origRenderTranscript(interim);
     scheduleLiveCheck();
+  };
+
+  // ---------- Auto-answer on pause ----------
+  // Runs the full "Solve" prompt on its own once the candidate stops
+  // talking for a few seconds — a longer, more deliberate pause than the
+  // live-coaching nudge's 2.5s idle window, since this fires a full answer
+  // rather than a 15-word hint. Same visibility rule as everything else:
+  // it writes into the same on-screen Coach panel a manual click would.
+  const autoSolveToggle = document.getElementById('autoSolveToggle');
+  const autoSolveDot = document.getElementById('autoSolveDot');
+  const autoSolveInsight = document.getElementById('autoSolveInsight');
+  let autoSolveEnabled = autoSolveToggle.checked;
+  let autoSolveIdleTimer = null;
+  let lastAutoSolveTranscriptCount = 0;
+  let lastAutoSolveCallAt = 0;
+  const AUTO_SOLVE_IDLE_MS = 4000;
+  const AUTO_SOLVE_MIN_INTERVAL_MS = 8000;
+
+  function scheduleAutoSolve() {
+    if (!autoSolveEnabled) return;
+    clearTimeout(autoSolveIdleTimer);
+    autoSolveIdleTimer = setTimeout(maybeRunAutoSolve, AUTO_SOLVE_IDLE_MS);
+  }
+
+  async function maybeRunAutoSolve() {
+    if (!autoSolveEnabled || coachInFlight) return;
+    if (transcriptLines.length === 0 || transcriptLines.length === lastAutoSolveTranscriptCount) return;
+    const now = Date.now();
+    if (now - lastAutoSolveCallAt < AUTO_SOLVE_MIN_INTERVAL_MS) {
+      clearTimeout(autoSolveIdleTimer);
+      autoSolveIdleTimer = setTimeout(maybeRunAutoSolve, AUTO_SOLVE_MIN_INTERVAL_MS - (now - lastAutoSolveCallAt) + 200);
+      return;
+    }
+    lastAutoSolveTranscriptCount = transcriptLines.length;
+    lastAutoSolveCallAt = now;
+    setActiveMode('solve');
+    autoSolveDot.classList.add('on');
+    try {
+      await runCoach('solve');
+    } finally {
+      autoSolveDot.classList.remove('on');
+    }
+  }
+
+  autoSolveToggle.addEventListener('change', () => {
+    autoSolveEnabled = autoSolveToggle.checked;
+    if (autoSolveEnabled) {
+      autoSolveInsight.textContent = 'On — after the candidate goes quiet for a few seconds, Solve runs automatically and its answer appears above. Visible to everyone watching this screen, same as a manual click.';
+      autoSolveInsight.classList.add('active');
+      lastAutoSolveTranscriptCount = transcriptLines.length;
+    } else {
+      autoSolveInsight.textContent = 'Off — flip the switch to have Solve run on its own after a natural pause in speech.';
+      autoSolveInsight.classList.remove('active');
+      clearTimeout(autoSolveIdleTimer);
+    }
+  });
+  if (autoSolveEnabled) autoSolveInsight.classList.add('active');
+
+  // Quick keyboard pause/resume for auto-answer (key "P") — doesn't fire
+  // while typing in a settings field, so it's safe to leave on globally.
+  document.addEventListener('keydown', (e) => {
+    if (e.key.toLowerCase() !== 'p' || e.ctrlKey || e.metaKey || e.altKey) return;
+    const tag = document.activeElement && document.activeElement.tagName;
+    if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+    autoSolveToggle.checked = !autoSolveToggle.checked;
+    autoSolveToggle.dispatchEvent(new Event('change'));
+  });
+
+  const _origRenderTranscript2 = renderTranscript;
+  renderTranscript = function(interim) {
+    _origRenderTranscript2(interim);
+    scheduleAutoSolve();
   };
 
   // ---------- Debrief ----------
@@ -650,7 +881,7 @@
 
   debriefBtn.addEventListener('click', async () => {
     const ctx = buildContext();
-    const prompt = `You are helping a student interview club run a debrief after a MOCK coding interview practice session (not a real one). Using the problem, the candidate's final code, and the transcript, produce a short, structured scorecard with these sections:\n- Problem-solving approach (1-2 sentences)\n- Code correctness & quality (1-2 sentences)\n- Communication (based on transcript, 1-2 sentences — if transcript is empty, say so plainly rather than guessing)\n- One thing that went well\n- One concrete thing to improve next time\n- Suggested next problem type to practice\n\nBe honest and specific, not just encouraging. Keep the whole thing under 180 words.\n\n${ctx}`;
+    const prompt = `You are helping a student interview club run a debrief after a MOCK coding interview practice session (not a real one). Using only the spoken transcript below — the problem discussed, the approach and any code the candidate talked through, and how they communicated — produce a short, structured scorecard with these sections:\n- Problem-solving approach (1-2 sentences)\n- Correctness & quality of what they described (1-2 sentences)\n- Communication (1-2 sentences — if the transcript is too sparse to judge, say so plainly rather than guessing)\n- One thing that went well\n- One concrete thing to improve next time\n- Suggested next problem type to practice\n\nBe honest and specific, not just encouraging. Keep the whole thing under 180 words.\n\n${ctx}`;
     debriefOutput.style.display = 'block';
     debriefOutput.innerHTML = '<span class="loading">Putting together the debrief…</span>';
     debriefBtn.disabled = true;

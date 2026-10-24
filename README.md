@@ -338,3 +338,6 @@ These have been discussed but not built:
 - A "quiet transcript" nudge — a chime or prompt if no speech is
   detected for N seconds, to catch silent thinking.
 - Persistence across sessions (saved debriefs and rubrics per student).
+## License
+
+MIT. See [LICENSE](LICENSE).
